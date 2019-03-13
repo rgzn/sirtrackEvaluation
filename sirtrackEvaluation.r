@@ -1,6 +1,7 @@
 library(tidyverse)
 library(adehabitatHR)
-library(sp)
+# library(sp)
+library(sf)
 
 
 
@@ -14,14 +15,17 @@ colnames.sirtrack<-c("GMT.Time", "Latitude", "Longitude", "Altitude", "Duration"
 sirtrack.data<-NULL
 for (i in 1:length(list.sirtrack.files)){ # i=1
   next.file<-paste(pth,list.sirtrack.files[i],sep="/")
-  next.collar <- read.csv(file=next.file,skip=4)
+  next.collar <- read_csv(file=next.file,skip=4)
   sn<-substring(list.sirtrack.files[i],10,14)
   next.collar$SN<-rep(sn,nrow(next.collar))
   if(i==1){sirtrack.data<-next.collar}else{sirtrack.data<-rbind(sirtrack.data,next.collar)}
 } 
-sirtrack.data<-sirtrack.data[sirtrack.data$Duration<181,]
-sirtrack.data<-sirtrack.data[!is.na(sirtrack.data$SN),]
-sirtrack.data<-sirtrack.data[!is.na(sirtrack.data$Altitude),]
+# sirtrack.data<-sirtrack.data[sirtrack.data$Duration<181,]
+# sirtrack.data<-sirtrack.data[!is.na(sirtrack.data$SN),]
+# sirtrack.data<-sirtrack.data[!is.na(sirtrack.data$Altitude),]
+
+sirtrack.data = sirtrack.data %>% 
+  mutate(datetime = as.POSIXct(`GMT Time`, tz = "GMT", format = "%m/%d/%Y %H:%M:%S %p"))
 
 ################## Collar Data #################
 # Get information on the test collars from the collar summary spreadsheet
@@ -32,23 +36,55 @@ collars = collars %>% mutate(SN = as.character(collar))
 
 test_data = left_join(sirtrack.data, collars, by = "SN" )
 
+# find dates of sunnyslope:
+alt_time = ggplot(test_data %>% filter(datetime > as.POSIXct("2019-03-06")), aes(x = datetime, y = Altitude)) +
+  geom_point(aes(col = SN))
+
+start_date = as.POSIXct("2019-03-07 4:00:00")
+end_date = as.POSIXct("2019-03-11")
+
+ggplot(test_data %>% filter(datetime >= start_date & datetime <= end_date), 
+       aes(x = datetime, y = Altitude)) +
+  geom_point(aes(col = SN))
+
+sunnyslope_data = test_data %>% 
+  filter(datetime >= start_date) %>%
+  filter(datetime <= end_date)
+
+# convert to spatial SF dataframe:
+sunnyslope_sf = sunnyslope_data %>% 
+  st_as_sf(coords = c("Longitude","Latitude"), crs = "+proj=longlat +datum=WGS84")
+
+ggplot(sunnyslope_sf, aes(x = Duration, y = DOP)) +
+  geom_point(aes(col = `fix type`))
+
+ggplot(sunnyslope_sf, aes(x = Duration, y = Altitude)) +
+  geom_point(aes(col = `fix type`))
+
+
+ggplot(sunnyslope_sf, aes(x = Altitude, y = DOP)) +
+  geom_point(aes(col = `fix type`))
+
 # histograms of fix time
 
-ggplot(test_data, aes(Duration)) +
+dur_hist = ggplot(test_data, aes(Duration)) +
   geom_histogram(aes(fill = `fix type`)) +
   xlab("duration (s)")
 
-ggplot(test_data, aes(Satellites)) +
+sat_hist = ggplot(test_data, aes(Satellites)) +
   geom_histogram(aes(fill = `fix type`)) +
   xlab("# visible sats")
 
-ggplot(test_data, aes(DOP)) +
+dop_hist = ggplot(test_data, aes(DOP)) +
   geom_histogram(aes(fill = `fix type`)) +
   xlab("DOP")
 
-ggplot(test_data, aes(Altitude)) +
+alt_hist = ggplot(test_data, aes(Altitude)) +
   geom_histogram(aes(fill = `fix type`)) +
-  xlab("DOP")
+  xlab("Altitude")
+
+histograms = gridExtra::grid.arrange(dur_hist, sat_hist, dop_hist, alt_hist, nrow = 2)
+
 
 
 (dur<-ggplot(data=sirtrack.data, aes(sirtrack.data$Duration)) + 

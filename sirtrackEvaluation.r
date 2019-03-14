@@ -65,6 +65,13 @@ ggplot(sunnyslope_sf, aes(x = Duration, y = Altitude)) +
 ggplot(sunnyslope_sf, aes(x = Altitude, y = DOP)) +
   geom_point(aes(col = `fix type`))
 
+ggplot(sunnyslope_sf, aes(x = Altitude, y = Satellites)) +
+  geom_point(aes(col = `fix type`))
+
+ggplot(sunnyslope_data, aes(x = performance, y = Altitude)) +
+  geom_point(aes(col = `fix type`))
+
+
 # histograms of fix time
 
 dur_hist = ggplot(test_data, aes(Duration)) +
